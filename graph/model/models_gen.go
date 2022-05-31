@@ -2,13 +2,8 @@
 
 package model
 
-type Shipment struct {
-	ID           string `json:"id"`
-	Name         string `json:"name"`
-	Origin       string `json:"origin"`
-	Destination  string `json:"destination"`
-	DeliveryDate string `json:"deliveryDate"`
-	TruckID      *Truck `json:"truckID"`
+type Mail struct {
+	Email string `json:"email"`
 }
 
 type Truck struct {

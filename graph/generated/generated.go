@@ -44,23 +44,17 @@ type DirectiveRoot struct {
 }
 
 type ComplexityRoot struct {
+	Mail struct {
+		Email func(childComplexity int) int
+	}
+
 	Mutation struct {
-		SaveShipment func(childComplexity int, id *string, name string, origin string, destination string, deliveryDate string, truckID string) int
-		SaveTruck    func(childComplexity int, id *string, plateNo string) int
+		SaveTruck            func(childComplexity int, id *string, plateNo string) int
+		SendTruckDataToEmail func(childComplexity int, email string) int
 	}
 
 	Query struct {
-		PaginatedShipments func(childComplexity int) int
-		PaginatedTrucks    func(childComplexity int) int
-	}
-
-	Shipment struct {
-		DeliveryDate func(childComplexity int) int
-		Destination  func(childComplexity int) int
-		ID           func(childComplexity int) int
-		Name         func(childComplexity int) int
-		Origin       func(childComplexity int) int
-		TruckID      func(childComplexity int) int
+		PaginatedTrucks func(childComplexity int) int
 	}
 
 	Truck struct {
@@ -71,11 +65,10 @@ type ComplexityRoot struct {
 
 type MutationResolver interface {
 	SaveTruck(ctx context.Context, id *string, plateNo string) (*model.Truck, error)
-	SaveShipment(ctx context.Context, id *string, name string, origin string, destination string, deliveryDate string, truckID string) (*model.Shipment, error)
+	SendTruckDataToEmail(ctx context.Context, email string) (*model.Mail, error)
 }
 type QueryResolver interface {
 	PaginatedTrucks(ctx context.Context) ([]*model.Truck, error)
-	PaginatedShipments(ctx context.Context) ([]*model.Shipment, error)
 }
 
 type executableSchema struct {
@@ -93,17 +86,12 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 	_ = ec
 	switch typeName + "." + field {
 
-	case "Mutation.saveShipment":
-		if e.complexity.Mutation.SaveShipment == nil {
+	case "Mail.email":
+		if e.complexity.Mail.Email == nil {
 			break
 		}
 
-		args, err := ec.field_Mutation_saveShipment_args(context.TODO(), rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.complexity.Mutation.SaveShipment(childComplexity, args["id"].(*string), args["name"].(string), args["origin"].(string), args["destination"].(string), args["deliveryDate"].(string), args["truckId"].(string)), true
+		return e.complexity.Mail.Email(childComplexity), true
 
 	case "Mutation.saveTruck":
 		if e.complexity.Mutation.SaveTruck == nil {
@@ -117,12 +105,17 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Mutation.SaveTruck(childComplexity, args["id"].(*string), args["plateNo"].(string)), true
 
-	case "Query.paginatedShipments":
-		if e.complexity.Query.PaginatedShipments == nil {
+	case "Mutation.sendTruckDataToEmail":
+		if e.complexity.Mutation.SendTruckDataToEmail == nil {
 			break
 		}
 
-		return e.complexity.Query.PaginatedShipments(childComplexity), true
+		args, err := ec.field_Mutation_sendTruckDataToEmail_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.SendTruckDataToEmail(childComplexity, args["email"].(string)), true
 
 	case "Query.paginatedTrucks":
 		if e.complexity.Query.PaginatedTrucks == nil {
@@ -130,48 +123,6 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Query.PaginatedTrucks(childComplexity), true
-
-	case "Shipment.deliveryDate":
-		if e.complexity.Shipment.DeliveryDate == nil {
-			break
-		}
-
-		return e.complexity.Shipment.DeliveryDate(childComplexity), true
-
-	case "Shipment.destination":
-		if e.complexity.Shipment.Destination == nil {
-			break
-		}
-
-		return e.complexity.Shipment.Destination(childComplexity), true
-
-	case "Shipment.id":
-		if e.complexity.Shipment.ID == nil {
-			break
-		}
-
-		return e.complexity.Shipment.ID(childComplexity), true
-
-	case "Shipment.name":
-		if e.complexity.Shipment.Name == nil {
-			break
-		}
-
-		return e.complexity.Shipment.Name(childComplexity), true
-
-	case "Shipment.origin":
-		if e.complexity.Shipment.Origin == nil {
-			break
-		}
-
-		return e.complexity.Shipment.Origin(childComplexity), true
-
-	case "Shipment.truckID":
-		if e.complexity.Shipment.TruckID == nil {
-			break
-		}
-
-		return e.complexity.Shipment.TruckID(childComplexity), true
 
 	case "Truck.id":
 		if e.complexity.Truck.ID == nil {
@@ -254,30 +205,12 @@ func (ec *executionContext) introspectType(name string) (*introspection.Type, er
 }
 
 var sources = []*ast.Source{
-	{Name: "../shipments.graphqls", Input: `type Shipment {
-    id: ID!
-    name: String!
-    origin: String!
-    destination: String!
-    deliveryDate: String!
-    truckID: Truck!
+	{Name: "../email.graphqls", Input: `type Mail {
+    email: String!
 }
-
-extend type Query{
-    paginatedShipments: [Shipment!]!
-}
-
-extend type Mutation{
-    saveShipment(
-        id: ID,
-        name: String!,
-        origin: String!,
-        destination: String!,
-        deliveryDate: String!,
-        truckId: String!
-    ) : Shipment!
-}
-`, BuiltIn: false},
+extend type Mutation {
+    sendTruckDataToEmail(email: String!): Mail!
+}`, BuiltIn: false},
 	{Name: "../trucks.graphqls", Input: `type Truck {
     id: ID!
     plateNo: String!
@@ -294,66 +227,6 @@ var parsedSchema = gqlparser.MustLoadSchema(sources...)
 // endregion ************************** generated!.gotpl **************************
 
 // region    ***************************** args.gotpl *****************************
-
-func (ec *executionContext) field_Mutation_saveShipment_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
-	var err error
-	args := map[string]interface{}{}
-	var arg0 *string
-	if tmp, ok := rawArgs["id"]; ok {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
-		arg0, err = ec.unmarshalOID2ᚖstring(ctx, tmp)
-		if err != nil {
-			return nil, err
-		}
-	}
-	args["id"] = arg0
-	var arg1 string
-	if tmp, ok := rawArgs["name"]; ok {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
-		arg1, err = ec.unmarshalNString2string(ctx, tmp)
-		if err != nil {
-			return nil, err
-		}
-	}
-	args["name"] = arg1
-	var arg2 string
-	if tmp, ok := rawArgs["origin"]; ok {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("origin"))
-		arg2, err = ec.unmarshalNString2string(ctx, tmp)
-		if err != nil {
-			return nil, err
-		}
-	}
-	args["origin"] = arg2
-	var arg3 string
-	if tmp, ok := rawArgs["destination"]; ok {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("destination"))
-		arg3, err = ec.unmarshalNString2string(ctx, tmp)
-		if err != nil {
-			return nil, err
-		}
-	}
-	args["destination"] = arg3
-	var arg4 string
-	if tmp, ok := rawArgs["deliveryDate"]; ok {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("deliveryDate"))
-		arg4, err = ec.unmarshalNString2string(ctx, tmp)
-		if err != nil {
-			return nil, err
-		}
-	}
-	args["deliveryDate"] = arg4
-	var arg5 string
-	if tmp, ok := rawArgs["truckId"]; ok {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("truckId"))
-		arg5, err = ec.unmarshalNString2string(ctx, tmp)
-		if err != nil {
-			return nil, err
-		}
-	}
-	args["truckId"] = arg5
-	return args, nil
-}
 
 func (ec *executionContext) field_Mutation_saveTruck_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
@@ -376,6 +249,21 @@ func (ec *executionContext) field_Mutation_saveTruck_args(ctx context.Context, r
 		}
 	}
 	args["plateNo"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_sendTruckDataToEmail_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 string
+	if tmp, ok := rawArgs["email"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("email"))
+		arg0, err = ec.unmarshalNString2string(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["email"] = arg0
 	return args, nil
 }
 
@@ -431,6 +319,50 @@ func (ec *executionContext) field___Type_fields_args(ctx context.Context, rawArg
 // endregion ************************** directives.gotpl **************************
 
 // region    **************************** field.gotpl *****************************
+
+func (ec *executionContext) _Mail_email(ctx context.Context, field graphql.CollectedField, obj *model.Mail) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mail_email(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Email, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mail_email(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mail",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
 
 func (ec *executionContext) _Mutation_saveTruck(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Mutation_saveTruck(ctx, field)
@@ -493,8 +425,8 @@ func (ec *executionContext) fieldContext_Mutation_saveTruck(ctx context.Context,
 	return fc, nil
 }
 
-func (ec *executionContext) _Mutation_saveShipment(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Mutation_saveShipment(ctx, field)
+func (ec *executionContext) _Mutation_sendTruckDataToEmail(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_sendTruckDataToEmail(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -507,7 +439,7 @@ func (ec *executionContext) _Mutation_saveShipment(ctx context.Context, field gr
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().SaveShipment(rctx, fc.Args["id"].(*string), fc.Args["name"].(string), fc.Args["origin"].(string), fc.Args["destination"].(string), fc.Args["deliveryDate"].(string), fc.Args["truckId"].(string))
+		return ec.resolvers.Mutation().SendTruckDataToEmail(rctx, fc.Args["email"].(string))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -519,12 +451,12 @@ func (ec *executionContext) _Mutation_saveShipment(ctx context.Context, field gr
 		}
 		return graphql.Null
 	}
-	res := resTmp.(*model.Shipment)
+	res := resTmp.(*model.Mail)
 	fc.Result = res
-	return ec.marshalNShipment2ᚖgithubᚗcomᚋyollaᚑkargoᚋkargoᚑtrucksᚋgraphᚋmodelᚐShipment(ctx, field.Selections, res)
+	return ec.marshalNMail2ᚖgithubᚗcomᚋyollaᚑkargoᚋkargoᚑtrucksᚋgraphᚋmodelᚐMail(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_Mutation_saveShipment(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Mutation_sendTruckDataToEmail(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Mutation",
 		Field:      field,
@@ -532,20 +464,10 @@ func (ec *executionContext) fieldContext_Mutation_saveShipment(ctx context.Conte
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
-			case "id":
-				return ec.fieldContext_Shipment_id(ctx, field)
-			case "name":
-				return ec.fieldContext_Shipment_name(ctx, field)
-			case "origin":
-				return ec.fieldContext_Shipment_origin(ctx, field)
-			case "destination":
-				return ec.fieldContext_Shipment_destination(ctx, field)
-			case "deliveryDate":
-				return ec.fieldContext_Shipment_deliveryDate(ctx, field)
-			case "truckID":
-				return ec.fieldContext_Shipment_truckID(ctx, field)
+			case "email":
+				return ec.fieldContext_Mail_email(ctx, field)
 			}
-			return nil, fmt.Errorf("no field named %q was found under type Shipment", field.Name)
+			return nil, fmt.Errorf("no field named %q was found under type Mail", field.Name)
 		},
 	}
 	defer func() {
@@ -555,7 +477,7 @@ func (ec *executionContext) fieldContext_Mutation_saveShipment(ctx context.Conte
 		}
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_saveShipment_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+	if fc.Args, err = ec.field_Mutation_sendTruckDataToEmail_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return
 	}
@@ -607,64 +529,6 @@ func (ec *executionContext) fieldContext_Query_paginatedTrucks(ctx context.Conte
 				return ec.fieldContext_Truck_plateNo(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Truck", field.Name)
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Query_paginatedShipments(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Query_paginatedShipments(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().PaginatedShipments(rctx)
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.([]*model.Shipment)
-	fc.Result = res
-	return ec.marshalNShipment2ᚕᚖgithubᚗcomᚋyollaᚑkargoᚋkargoᚑtrucksᚋgraphᚋmodelᚐShipmentᚄ(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_Query_paginatedShipments(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Query",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			switch field.Name {
-			case "id":
-				return ec.fieldContext_Shipment_id(ctx, field)
-			case "name":
-				return ec.fieldContext_Shipment_name(ctx, field)
-			case "origin":
-				return ec.fieldContext_Shipment_origin(ctx, field)
-			case "destination":
-				return ec.fieldContext_Shipment_destination(ctx, field)
-			case "deliveryDate":
-				return ec.fieldContext_Shipment_deliveryDate(ctx, field)
-			case "truckID":
-				return ec.fieldContext_Shipment_truckID(ctx, field)
-			}
-			return nil, fmt.Errorf("no field named %q was found under type Shipment", field.Name)
 		},
 	}
 	return fc, nil
@@ -794,276 +658,6 @@ func (ec *executionContext) fieldContext_Query___schema(ctx context.Context, fie
 				return ec.fieldContext___Schema_directives(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type __Schema", field.Name)
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Shipment_id(ctx context.Context, field graphql.CollectedField, obj *model.Shipment) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Shipment_id(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return obj.ID, nil
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(string)
-	fc.Result = res
-	return ec.marshalNID2string(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_Shipment_id(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Shipment",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type ID does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Shipment_name(ctx context.Context, field graphql.CollectedField, obj *model.Shipment) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Shipment_name(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return obj.Name, nil
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(string)
-	fc.Result = res
-	return ec.marshalNString2string(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_Shipment_name(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Shipment",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Shipment_origin(ctx context.Context, field graphql.CollectedField, obj *model.Shipment) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Shipment_origin(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return obj.Origin, nil
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(string)
-	fc.Result = res
-	return ec.marshalNString2string(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_Shipment_origin(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Shipment",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Shipment_destination(ctx context.Context, field graphql.CollectedField, obj *model.Shipment) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Shipment_destination(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return obj.Destination, nil
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(string)
-	fc.Result = res
-	return ec.marshalNString2string(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_Shipment_destination(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Shipment",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Shipment_deliveryDate(ctx context.Context, field graphql.CollectedField, obj *model.Shipment) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Shipment_deliveryDate(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return obj.DeliveryDate, nil
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(string)
-	fc.Result = res
-	return ec.marshalNString2string(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_Shipment_deliveryDate(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Shipment",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Shipment_truckID(ctx context.Context, field graphql.CollectedField, obj *model.Shipment) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Shipment_truckID(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return obj.TruckID, nil
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(*model.Truck)
-	fc.Result = res
-	return ec.marshalNTruck2ᚖgithubᚗcomᚋyollaᚑkargoᚋkargoᚑtrucksᚋgraphᚋmodelᚐTruck(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_Shipment_truckID(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Shipment",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			switch field.Name {
-			case "id":
-				return ec.fieldContext_Truck_id(ctx, field)
-			case "plateNo":
-				return ec.fieldContext_Truck_plateNo(ctx, field)
-			}
-			return nil, fmt.Errorf("no field named %q was found under type Truck", field.Name)
 		},
 	}
 	return fc, nil
@@ -2938,6 +2532,34 @@ func (ec *executionContext) fieldContext___Type_specifiedByURL(ctx context.Conte
 
 // region    **************************** object.gotpl ****************************
 
+var mailImplementors = []string{"Mail"}
+
+func (ec *executionContext) _Mail(ctx context.Context, sel ast.SelectionSet, obj *model.Mail) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, mailImplementors)
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("Mail")
+		case "email":
+
+			out.Values[i] = ec._Mail_email(ctx, field, obj)
+
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
 var mutationImplementors = []string{"Mutation"}
 
 func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet) graphql.Marshaler {
@@ -2966,10 +2588,10 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				invalids++
 			}
-		case "saveShipment":
+		case "sendTruckDataToEmail":
 
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_saveShipment(ctx, field)
+				return ec._Mutation_sendTruckDataToEmail(ctx, field)
 			})
 
 			if out.Values[i] == graphql.Null {
@@ -3028,29 +2650,6 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			out.Concurrently(i, func() graphql.Marshaler {
 				return rrm(innerCtx)
 			})
-		case "paginatedShipments":
-			field := field
-
-			innerFunc := func(ctx context.Context) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Query_paginatedShipments(ctx, field)
-				if res == graphql.Null {
-					atomic.AddUint32(&invalids, 1)
-				}
-				return res
-			}
-
-			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx, innerFunc)
-			}
-
-			out.Concurrently(i, func() graphql.Marshaler {
-				return rrm(innerCtx)
-			})
 		case "__type":
 
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
@@ -3063,69 +2662,6 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 				return ec._Query___schema(ctx, field)
 			})
 
-		default:
-			panic("unknown field " + strconv.Quote(field.Name))
-		}
-	}
-	out.Dispatch()
-	if invalids > 0 {
-		return graphql.Null
-	}
-	return out
-}
-
-var shipmentImplementors = []string{"Shipment"}
-
-func (ec *executionContext) _Shipment(ctx context.Context, sel ast.SelectionSet, obj *model.Shipment) graphql.Marshaler {
-	fields := graphql.CollectFields(ec.OperationContext, sel, shipmentImplementors)
-	out := graphql.NewFieldSet(fields)
-	var invalids uint32
-	for i, field := range fields {
-		switch field.Name {
-		case "__typename":
-			out.Values[i] = graphql.MarshalString("Shipment")
-		case "id":
-
-			out.Values[i] = ec._Shipment_id(ctx, field, obj)
-
-			if out.Values[i] == graphql.Null {
-				invalids++
-			}
-		case "name":
-
-			out.Values[i] = ec._Shipment_name(ctx, field, obj)
-
-			if out.Values[i] == graphql.Null {
-				invalids++
-			}
-		case "origin":
-
-			out.Values[i] = ec._Shipment_origin(ctx, field, obj)
-
-			if out.Values[i] == graphql.Null {
-				invalids++
-			}
-		case "destination":
-
-			out.Values[i] = ec._Shipment_destination(ctx, field, obj)
-
-			if out.Values[i] == graphql.Null {
-				invalids++
-			}
-		case "deliveryDate":
-
-			out.Values[i] = ec._Shipment_deliveryDate(ctx, field, obj)
-
-			if out.Values[i] == graphql.Null {
-				invalids++
-			}
-		case "truckID":
-
-			out.Values[i] = ec._Shipment_truckID(ctx, field, obj)
-
-			if out.Values[i] == graphql.Null {
-				invalids++
-			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -3520,62 +3056,18 @@ func (ec *executionContext) marshalNID2string(ctx context.Context, sel ast.Selec
 	return res
 }
 
-func (ec *executionContext) marshalNShipment2githubᚗcomᚋyollaᚑkargoᚋkargoᚑtrucksᚋgraphᚋmodelᚐShipment(ctx context.Context, sel ast.SelectionSet, v model.Shipment) graphql.Marshaler {
-	return ec._Shipment(ctx, sel, &v)
+func (ec *executionContext) marshalNMail2githubᚗcomᚋyollaᚑkargoᚋkargoᚑtrucksᚋgraphᚋmodelᚐMail(ctx context.Context, sel ast.SelectionSet, v model.Mail) graphql.Marshaler {
+	return ec._Mail(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNShipment2ᚕᚖgithubᚗcomᚋyollaᚑkargoᚋkargoᚑtrucksᚋgraphᚋmodelᚐShipmentᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Shipment) graphql.Marshaler {
-	ret := make(graphql.Array, len(v))
-	var wg sync.WaitGroup
-	isLen1 := len(v) == 1
-	if !isLen1 {
-		wg.Add(len(v))
-	}
-	for i := range v {
-		i := i
-		fc := &graphql.FieldContext{
-			Index:  &i,
-			Result: &v[i],
-		}
-		ctx := graphql.WithFieldContext(ctx, fc)
-		f := func(i int) {
-			defer func() {
-				if r := recover(); r != nil {
-					ec.Error(ctx, ec.Recover(ctx, r))
-					ret = nil
-				}
-			}()
-			if !isLen1 {
-				defer wg.Done()
-			}
-			ret[i] = ec.marshalNShipment2ᚖgithubᚗcomᚋyollaᚑkargoᚋkargoᚑtrucksᚋgraphᚋmodelᚐShipment(ctx, sel, v[i])
-		}
-		if isLen1 {
-			f(i)
-		} else {
-			go f(i)
-		}
-
-	}
-	wg.Wait()
-
-	for _, e := range ret {
-		if e == graphql.Null {
-			return graphql.Null
-		}
-	}
-
-	return ret
-}
-
-func (ec *executionContext) marshalNShipment2ᚖgithubᚗcomᚋyollaᚑkargoᚋkargoᚑtrucksᚋgraphᚋmodelᚐShipment(ctx context.Context, sel ast.SelectionSet, v *model.Shipment) graphql.Marshaler {
+func (ec *executionContext) marshalNMail2ᚖgithubᚗcomᚋyollaᚑkargoᚋkargoᚑtrucksᚋgraphᚋmodelᚐMail(ctx context.Context, sel ast.SelectionSet, v *model.Mail) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
 		}
 		return graphql.Null
 	}
-	return ec._Shipment(ctx, sel, v)
+	return ec._Mail(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNString2string(ctx context.Context, v interface{}) (string, error) {

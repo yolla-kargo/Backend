@@ -1,0 +1,7 @@
+type Mail {
+    email: String!
+}
+extend type Mutation {
+    sendTruckDataToEmail(email: String!): Mail!
+}
+
